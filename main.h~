@@ -1,0 +1,3 @@
+void dostuff(int sock);
+void handle(int socket);
+void error(char *msg);
