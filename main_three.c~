@@ -119,27 +119,11 @@ void *handle(void *param) {
 	
 	//print request buffer
 	printf("Request:\r\n%s\n", buffer);
-	
-	/*
-	//check that the contents are within range for the buffer and add terminator to the end
-	if(ret > 0 && ret < BUFLEN)	
-		buffer[ret]=0;	
-	else buffer[0]=0;
-	printf("buffer after 0's:\r\n%s\r\nEND\r\n",buffer);
-	
-	//replace returns and newlines with '*'
-	for(i=0;i<ret;i++)	
-		if(buffer[i] == '\r' || buffer[i] == '\n')
-			buffer[i]='*';
-	printf("buffer after 0's:\r\n%s\r\nEND\r\n",buffer);
-	*/
-	
-	
+		
 	//add terminator to end of the request part of the buffer as we are only interested in this (and not the headers)
 	for(i=4;i<BUFLEN;i++) {
 		if(buffer[i] == '/'){
 			for(j=i;j<BUFLEN;j++){
-				printf("j:%ld",j);
 				if(buffer[j] == ' ') { 
 					buffer[j] = 0;
 					break;
@@ -149,16 +133,13 @@ void *handle(void *param) {
 		}
 	}
 	
-	printf("buffer after 0's:\r\n%s\r\nEND\r\n",buffer);
-	
+	//printf("buffer after 0's:\r\n%s\r\nEND\r\n",buffer);
 	
 	//null url handling
 	if( !strncmp(&buffer[0],"GET /\0",6) || !strncmp(&buffer[0],"get /\0",6) ) 
 		(void)strcpy(buffer,"GET /index.html\0");
 	if( !strncmp(&buffer[0],"HEAD /\0",7) || !strncmp(&buffer[0],"head /\0",7) ) 
 		(void)strcpy(buffer,"HEAD /index.html\0");
-		
-	//printf("buffer after 0's:\r\n%s\r\nEND\r\n",buffer);
 		
 	//GET requests
 	if( !strncmp(&buffer[0],"GET /",5) || !strncmp(&buffer[0],"get /",5) ){ 
@@ -184,7 +165,7 @@ void *handle(void *param) {
 	
 		//print response buffer
 		printf("Response:\r\n%s\n", buffer);
-	
+		
 		//write contents of the requested file
 		while (	(ret = read(file_fd, buffer, BUFLEN)) > 0 ) {
 			(void)write(fd,buffer,ret);
@@ -231,28 +212,4 @@ int get_file_size(int fd) {
 	if (fstat(fd, &stat_struct) == -1)
   		return (1);
  	return (int) stat_struct.st_size;
-}
-
-
-int parse(const char* line){
-    /* Find out where everything is */
-    const char *start_of_path = strchr(line, ' ') + 1;
-    const char *start_of_query = strchr(start_of_path, '?');
-    const char *end_of_query = strchr(start_of_query, ' ');
-
-    /* Get the right amount of memory */
-    char path[start_of_query - start_of_path];
-    char query[end_of_query - start_of_query];
-
-    /* Copy the strings into our memory */
-    strncpy(path, start_of_path,  start_of_query - start_of_path);
-    strncpy(query, start_of_query, end_of_query - start_of_query);
-
-    /* Null terminators (because strncpy does not provide them) */
-    path[sizeof(path)] = 0;
-    query[sizeof(query)] = 0;
-
-    /*Print */
-    printf("%s\n", query);
-    printf("%s\n", path);
 }

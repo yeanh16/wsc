@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en">
-<title>Page 2</title>
-<BODY BGCOLOR="white">
+<title>Oscar's web server example</title>
+<BODY BGCOLOR="grey">
 <center>
 <H1>PAGE 2</H1>
 <p>
-Nice
+This is page 2! Welcome :)
 </p>
 
 </center>

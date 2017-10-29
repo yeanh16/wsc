@@ -124,7 +124,6 @@ void *handle(void *param) {
 	for(i=4;i<BUFLEN;i++) {
 		if(buffer[i] == '/'){
 			for(j=i;j<BUFLEN;j++){
-				printf("j:%ld",j);
 				if(buffer[j] == ' ') { 
 					buffer[j] = 0;
 					break;
@@ -144,7 +143,6 @@ void *handle(void *param) {
 		
 	//GET requests
 	if( !strncmp(&buffer[0],"GET /",5) || !strncmp(&buffer[0],"get /",5) ){ 
-		printf("GET request recieved\n");
 		buflen=strlen(buffer);
 		fstr = (char *)0;
 		for(i=0;extensions[i].ext != 0;i++) {
@@ -166,7 +164,7 @@ void *handle(void *param) {
 	
 		//print response buffer
 		printf("Response:\r\n%s\n", buffer);
-	
+		
 		//write contents of the requested file
 		while (	(ret = read(file_fd, buffer, BUFLEN)) > 0 ) {
 			(void)write(fd,buffer,ret);
