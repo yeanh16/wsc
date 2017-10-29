@@ -8,9 +8,6 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <openssl/bio.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
 #include "main_three.h"
 
 #define BUFLEN 9999
@@ -59,34 +56,13 @@ void write_new(int sock, char *msg) {
  }
 }
 
-void InitialiseSSL(){
-	SSL_load_error_strings();
-	SSL_library_init();
-	OpenSSL_add_all_algorithms();
-}
-
-void DestroySSL(){
-	ERR_free_strings();
-	EVP_cleanup();
-}
-
-void ShutdownSSL(SSL* ssl){
-	SSL_shutdown(ssl);
-	SSL_free(ssl);
-}
-
-
 int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
-    SSL_CTX *sslctx;
-    SSL *cSSL;
     struct sockaddr_in6 serv_addr, cli_addr;
     if (argc < 2) {
         fprintf(stderr, "ERROR, no port provided\n");
         exit(1);
     }
-    
-    InitialiseSSL();
     sockfd = socket(AF_INET6, SOCK_STREAM, 0);
     if (sockfd < 0) {
         error("ERROR opening socket");
@@ -114,24 +90,11 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
 
-	
+
         tcb_p->their_address_size = sizeof (tcb_p->their_address);
         if ((tcb_p->client = accept(sockfd, (struct sockaddr *) &(tcb_p->their_address), &(tcb_p->their_address_size))) >= 0) {
-            sslctx = SSL_CTX_new( SSLv23_server_method());
-            SSL_CTX_set_options(sslctx, SSL_OP_SINGLE_DH_USE);
-            int use_cert = SSL_CTX_use_certificate_file(sslctx, "/mycert.pem" , SSL_FILETYPE_PEM);
-	    int use_prv = SSL_CTX_use_PrivateKey_file(sslctx, "/mycert.pem", SSL_FILETYPE_PEM);
-	    cSSL = SSL_new(sslctx);
-	    SSL_set_fd(cSSL, tcb_p->client );
-	    
-	    int ssl_err = SSL_accept(cSSL);
-	    if(ssl_err <= 0){
-	    	//Error occurred, log and close down ssl
-	    	ShutdownSSL(cSSL);
-	    }
-	    
             pthread_t thread;
-            if (pthread_create(&thread, 0, handle, (void *) tcb_p, (void *) cSSL, != 0) {
+            if (pthread_create(&thread, 0, handle, (void *) tcb_p) != 0) {
                 exit(1);
                 //error
                 error("Error creating new thread");
@@ -144,16 +107,15 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void *handle(void *param, void *param_two) {
+void *handle(void *param) {
     	
     	int file_fd, buflen, len;
 	long i, j, ret;
 	char * fstr;
 	static char buffer[BUFLEN+1];
 	thread_control_block_t * tcb_p = param;
-	SSL * cSSL = param_two;
 	int fd = tcb_p->client;
-	ret = SSL_read(cSSL,buffer,BUFLEN); 
+	ret =read(fd,buffer,BUFLEN); 
 	
 	//print request buffer
 	printf("Request:\r\n%s\n", buffer);
@@ -173,7 +135,7 @@ void *handle(void *param, void *param_two) {
 	
 	//printf("buffer after 0's:\r\n%s\r\nEND\r\n",buffer);
 	
-	//null uri handling
+	//null url handling
 	if( !strncmp(&buffer[0],"GET /\0",6) || !strncmp(&buffer[0],"get /\0",6) ) 
 		(void)strcpy(buffer,"GET /index.html\0");
 	if( !strncmp(&buffer[0],"HEAD /\0",7) || !strncmp(&buffer[0],"head /\0",7) ) 
@@ -194,18 +156,19 @@ void *handle(void *param, void *param_two) {
 		//see if file is available
 		if(( file_fd = open(&buffer[5],O_RDONLY)) == -1) 
 			error("File not supported");
-
-		//send response
-		int length = get_file_size(file_fd);
-		(void)sprintf(buffer,"HTTP/1.1 200 OK\r\nContent-Type: %s\r\n\r\n", fstr);
-		(void)write(fd,buffer,strlen(buffer));
+		else{
+			//send response
+			int length = get_file_size(file_fd);
+			(void)sprintf(buffer,"HTTP/1.1 200 OK\r\nContent-Type: %s\r\n\r\n", fstr);
+			(void)write(fd,buffer,strlen(buffer));
 	
-		//print response buffer
-		printf("Response:\r\n%s\n", buffer);
+			//print response buffer
+			printf("Response:\r\n%s\n", buffer);
 		
-		//write contents of the requested file
-		while (	(ret = read(file_fd, buffer, BUFLEN)) > 0 ) {
-			(void)SSL_write(cSSL,buffer,ret);
+			//write contents of the requested file
+			while (	(ret = read(file_fd, buffer, BUFLEN)) > 0 ) {
+				(void)write(fd,buffer,ret);
+			}
 		}
 	}
 	//HEAD requests
@@ -227,14 +190,15 @@ void *handle(void *param, void *param_two) {
 		//send response
 		int length = get_file_size(file_fd);
 		(void)sprintf(buffer,"HTTP/1.1 200 OK\r\nContent-Type: %s\r\nContent Length: %d\r\n", fstr,length);
-		(void)SSL_write(cSSL, buffer, strlen(buffer));
+		(void)write(fd,buffer,strlen(buffer));
 	
 		//print response buffer
 		printf("Response:\r\n%s\n", buffer);
 	}
 	//not supported html request
 	else{
-		SSL_write(cSSL, "HTTP/1.1 501 Not Implemented\r\n", 29);
+		write_new(fd, "HTTP/1.1	501 Not Implemented\r\n");
+		write_new(fd, "<html><h>501 Not Implemented</h></html>");
 		printf("Recieved bad request or not implemented\n");
 	}
 	

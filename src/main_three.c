@@ -156,18 +156,19 @@ void *handle(void *param) {
 		//see if file is available
 		if(( file_fd = open(&buffer[5],O_RDONLY)) == -1) 
 			error("File not supported");
-
-		//send response
-		int length = get_file_size(file_fd);
-		(void)sprintf(buffer,"HTTP/1.1 200 OK\r\nContent-Type: %s\r\n\r\n", fstr);
-		(void)write(fd,buffer,strlen(buffer));
+		else{
+			//send response
+			int length = get_file_size(file_fd);
+			(void)sprintf(buffer,"HTTP/1.1 200 OK\r\nContent-Type: %s\r\n\r\n", fstr);
+			(void)write(fd,buffer,strlen(buffer));
 	
-		//print response buffer
-		printf("Response:\r\n%s\n", buffer);
+			//print response buffer
+			printf("Response:\r\n%s\n", buffer);
 		
-		//write contents of the requested file
-		while (	(ret = read(file_fd, buffer, BUFLEN)) > 0 ) {
-			(void)write(fd,buffer,ret);
+			//write contents of the requested file
+			while (	(ret = read(file_fd, buffer, BUFLEN)) > 0 ) {
+				(void)write(fd,buffer,ret);
+			}
 		}
 	}
 	//HEAD requests
@@ -196,7 +197,8 @@ void *handle(void *param) {
 	}
 	//not supported html request
 	else{
-		write_new(fd, "HTTP/1.1	501 Not Implemented\r\n");
+		write_new(fd, "HTTP/1.1	404 Not Found\r\n");
+		write_new(fd, "<html><h>404 Not Found</h></html>");
 		printf("Recieved bad request or not implemented\n");
 	}
 	

@@ -9,8 +9,8 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <openssl/bio.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
+#include "openssl/ssl.h"
+#include "openssl/err.h"
 #include "main_three.h"
 
 #define BUFLEN 9999
@@ -19,6 +19,7 @@ typedef struct thread_control_block {
 	int client;
 	struct sockaddr_in6 their_address;
 	socklen_t their_address_size;
+	SSL *cSSL;
 } thread_control_block_t;
 
 struct {
@@ -59,26 +60,47 @@ void write_new(int sock, char *msg) {
  }
 }
 
-void InitialiseSSL(){
-	SSL_load_error_strings();
-	SSL_library_init();
-	OpenSSL_add_all_algorithms();
+SSL_CTX* InitServerCTX(void){   
+    SSL_METHOD *method;
+    SSL_CTX *ctx;
+ 
+    OpenSSL_add_all_algorithms();  /* load & register all cryptos, etc. */
+    SSL_load_error_strings();   /* load all error messages */
+    method = TLSv1_2_server_method();  /* create new server-method instance */
+    ctx = SSL_CTX_new(method);   /* create new context from method */
+    if ( ctx == NULL )
+    {
+        ERR_print_errors_fp(stderr);
+        abort();
+    }
+    return ctx;
 }
 
-void DestroySSL(){
-	ERR_free_strings();
-	EVP_cleanup();
+void LoadCertificates(SSL_CTX* ctx, char* CertFile, char* KeyFile)
+{
+    /* set the local certificate from CertFile */
+    if ( SSL_CTX_use_certificate_file(ctx, CertFile, SSL_FILETYPE_PEM) <= 0 )
+    {
+        ERR_print_errors_fp(stderr);
+        abort();
+    }
+    /* set the private key from KeyFile (may be the same as CertFile) */
+    if ( SSL_CTX_use_PrivateKey_file(ctx, KeyFile, SSL_FILETYPE_PEM) <= 0 )
+    {
+        ERR_print_errors_fp(stderr);
+        abort();
+    }
+    /* verify private key */
+    if ( !SSL_CTX_check_private_key(ctx) )
+    {
+        fprintf(stderr, "Private key does not match the public certificate\n");
+        abort();
+    }
 }
-
-void ShutdownSSL(SSL* ssl){
-	SSL_shutdown(ssl);
-	SSL_free(ssl);
-}
-
 
 int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
-    SSL_CTX *sslctx;
+    SSL_CTX *sslctx = InitServerCTX();
     SSL *cSSL;
     struct sockaddr_in6 serv_addr, cli_addr;
     if (argc < 2) {
@@ -86,7 +108,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
     
-    InitialiseSSL();
+    LoadCertificates(sslctx, "mycer.pem", "mycert.pem");
     sockfd = socket(AF_INET6, SOCK_STREAM, 0);
     if (sockfd < 0) {
         error("ERROR opening socket");
@@ -123,6 +145,7 @@ int main(int argc, char *argv[]) {
 	    int use_prv = SSL_CTX_use_PrivateKey_file(sslctx, "/mycert.pem", SSL_FILETYPE_PEM);
 	    cSSL = SSL_new(sslctx);
 	    SSL_set_fd(cSSL, tcb_p->client );
+	    tcb_p->cSSL = cSSL;
 	    
 	    int ssl_err = SSL_accept(cSSL);
 	    if(ssl_err <= 0){
@@ -131,7 +154,7 @@ int main(int argc, char *argv[]) {
 	    }
 	    
             pthread_t thread;
-            if (pthread_create(&thread, 0, handle, (void *) tcb_p, (void *) cSSL, != 0) {
+            if (pthread_create(&thread, 0, handle, (void *) tcb_p) != 0) {
                 exit(1);
                 //error
                 error("Error creating new thread");
@@ -144,14 +167,14 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-void *handle(void *param, void *param_two) {
+void *handle(void *param) {
     	
     	int file_fd, buflen, len;
 	long i, j, ret;
 	char * fstr;
 	static char buffer[BUFLEN+1];
 	thread_control_block_t * tcb_p = param;
-	SSL * cSSL = param_two;
+	SSL * cSSL = tcb_p->cSSL;
 	int fd = tcb_p->client;
 	ret = SSL_read(cSSL,buffer,BUFLEN); 
 	
@@ -239,6 +262,9 @@ void *handle(void *param, void *param_two) {
 	}
 	
 	//close connection
+	int sd = SSL_get_fd(cSSL);
+	SSL_free(cSSL);
+	close(sd);
 	close(tcb_p->client);
 	free(tcb_p);
 	pthread_exit(0);

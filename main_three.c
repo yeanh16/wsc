@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
 	    }
 	    
             pthread_t thread;
-            if (pthread_create(&thread, 0, handle, (void *) tcb_p, (void *) cSSL, != 0) {
+            if (pthread_create(&thread, 0, handle, (void *) tcb_p, (void *) cSSL) != 0) {
                 exit(1);
                 //error
                 error("Error creating new thread");
