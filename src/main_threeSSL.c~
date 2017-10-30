@@ -185,7 +185,7 @@ void *handle(void *param) {
 	int fd = tcb_p->client;
 	ret = SSL_read(cSSL,buffer,BUFLEN); 
 	if (ret <= 0){
-		printf("%d",SSL_get_error(cSSL,ret));
+		SSL_get_error(cSSL,ret);
 		error("Read failed");
 		exit(1);
 	}
